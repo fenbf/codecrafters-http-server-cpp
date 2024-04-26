@@ -62,17 +62,31 @@ int main(int argc, char **argv) {
   std::cout << "resd buffer:\n" << buffer << std::endl;
   
   std::string str {buffer};
-  auto pos = str.find('/');
 
   std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
   
-  if (pos != std::string::npos)
+  const std::string echo = "GET /echo/";
+  auto pos = str.find(echo);
+  if (pos == 0)
   {
+      std::cout << "starts with echo...\n";
+      auto spaceAfter = str.find(' ', echo.length());
+      auto randomString = str.substr(echo.length(), spaceAfter - echo.length());
+      std::cout << "string is: " << randomString << '\n';
+      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+      response += std::to_string(randomString.length()) + "\r\n\r\n" + randomString + "\r\n";
+  }
+  else
+  {
+    pos = str.find('/');  
+    if (pos != std::string::npos)
+    {
       std::cout << "pos: " << pos << '\n';
       if (str[pos+1] == ' ')
       {
          response = "HTTP/1.1 200 OK\r\n\r\n";
       }
+    }
   }
   
   std::cout << "response: " << response << '\n';
