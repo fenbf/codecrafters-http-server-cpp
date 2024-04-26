@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <string>
 
 int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -54,14 +55,30 @@ int main(int argc, char **argv) {
   
   char buffer[255] { 0 };
   const int len = read(client_fd, buffer, 255);
-
+ 
   if (len < 0)
     std::cout << "Failed to read the request\n";
 
   std::cout << "resd buffer:\n" << buffer << std::endl;
+  
+  std::string str {buffer};
+  auto pos = str.find('/');
 
-  if (write(client_fd, "HTTP/1.1 200 OK\r\n\r\n", 19) < 0)
-		std::cout << "Failed to write the request\n";
+  std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
+  
+  if (pos != std::string::npos)
+  {
+      std::cout << "pos: " << pos << '\n';
+      if (str[pos+1] == ' ')
+      {
+         response = "HTTP/1.1 200 OK\r\n\r\n";
+      }
+  }
+  
+  std::cout << "response: " << response << '\n';
+  
+  if (write(client_fd, response.c_str(), response.length()) < 0)
+	std::cout << "Failed to write the request\n";
 
   std::cout << "Message send" << std::endl;
   close(server_fd);
