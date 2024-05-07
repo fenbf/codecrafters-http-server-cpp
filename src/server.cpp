@@ -86,6 +86,23 @@ int main(int argc, char **argv) {
       {
          response = "HTTP/1.1 200 OK\r\n\r\n";
       }
+      else  // user-agent?
+      {
+         pos = str.find("/user-agent");
+         if (pos != std::string::npos)
+         {
+            pos = str.find("User-Agent:");
+            if (pos != std::string::npos)
+            {              
+              auto endPos = str.find("\r\n", pos);
+              auto startPos = pos+std::string("User-Agent: ").length();
+              auto agent = str.substr(startPos, endPos - startPos);
+              std::cout << "agent:\"" << agent << "\", count: " << agent.length() << "\n";
+              response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+              response += std::to_string(agent.length()) + "\r\n\r\n" + agent + "\r\n";
+            }
+         }
+      }
     }
   }
   
