@@ -7,112 +7,129 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <string>
+#include <thread>
+#include <vector>
+
+void handle_client(int client_fd) {
+    char buffer[255] { 0 };
+    const int len = read(client_fd, buffer, 255);
+
+    if (len < 0) {
+        std::cout << "Failed to read the request\n";
+        close(client_fd);
+        return;
+    }
+
+    std::cout << "Read buffer:\n" << buffer << std::endl;
+
+    std::string str {buffer};
+    std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
+  
+    const std::string echo = "GET /echo/";
+    auto pos = str.find(echo);
+    if (pos == 0)
+    {
+        std::cout << "starts with echo...\n";
+        auto spaceAfter = str.find(' ', echo.length());
+        auto randomString = str.substr(echo.length(), spaceAfter - echo.length());
+        std::cout << "string is: " << randomString << '\n';
+        response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+        response += std::to_string(randomString.length()) + "\r\n\r\n" + randomString + "\r\n";
+    }
+    else
+    {
+        pos = str.find('/');  
+        if (pos != std::string::npos)
+        {
+            std::cout << "pos: " << pos << '\n';
+            if (str[pos+1] == ' ')
+            {
+                response = "HTTP/1.1 200 OK\r\n\r\n";
+            }
+            else  // user-agent?
+            {
+                pos = str.find("/user-agent");
+                if (pos != std::string::npos)
+                {
+                    pos = str.find("User-Agent:");
+                    if (pos != std::string::npos)
+                    {              
+                        auto endPos = str.find("\r\n", pos);
+                        auto startPos = pos+std::string("User-Agent: ").length();
+                        auto agent = str.substr(startPos, endPos - startPos);
+                        std::cout << "agent:\"" << agent << "\", count: " << agent.length() << "\n";
+                        response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
+                        response += std::to_string(agent.length()) + "\r\n\r\n" + agent + "\r\n";
+                    }
+                }
+            }
+        }
+    }
+
+    std::cout << "Response: " << response << '\n';
+
+    if (write(client_fd, response.c_str(), response.length()) < 0) {
+        std::cout << "Failed to write the request\n";
+    }
+
+    std::cout << "Message sent" << std::endl;
+    close(client_fd);
+}
 
 int main(int argc, char **argv) {
-  // You can use print statements as follows for debugging, they'll be visible when running tests.
-  std::cout << "Logs from your program will appear here!\n";
+    std::cout << "Logs from your program will appear here!\n";
 
-  // Uncomment this block to pass the first stage
-  //
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (server_fd < 0) {
-      std::cerr << "Failed to create server socket\n";
-      return 1;
-  }
-  
-  // Since the tester restarts your program quite often, setting REUSE_PORT
-  // ensures that we don't run into 'Address already in use' errors
-  int reuse = 1;
-  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) < 0) {
-    std::cerr << "setsockopt failed\n";
-    return 1;
-  }
-  
-  struct sockaddr_in server_addr;
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(4221);
-  
-  if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) != 0) {
-    std::cerr << "Failed to bind to port 4221\n";
-    return 1;
-  }
-  
-  int connection_backlog = 5;
-  if (listen(server_fd, connection_backlog) != 0) {
-    std::cerr << "listen failed\n";
-    return 1;
-  }
-  
-  struct sockaddr_in client_addr;
-  int client_addr_len = sizeof(client_addr);
-  
-  std::cout << "Waiting for a client to connect...\n";
-  
-  int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
-  std::cout << "Client connected\n";
-  
-  char buffer[255] { 0 };
-  const int len = read(client_fd, buffer, 255);
- 
-  if (len < 0)
-    std::cout << "Failed to read the request\n";
-
-  std::cout << "resd buffer:\n" << buffer << std::endl;
-  
-  std::string str {buffer};
-
-  std::string response = "HTTP/1.1 404 Not Found\r\n\r\n";
-  
-  const std::string echo = "GET /echo/";
-  auto pos = str.find(echo);
-  if (pos == 0)
-  {
-      std::cout << "starts with echo...\n";
-      auto spaceAfter = str.find(' ', echo.length());
-      auto randomString = str.substr(echo.length(), spaceAfter - echo.length());
-      std::cout << "string is: " << randomString << '\n';
-      response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
-      response += std::to_string(randomString.length()) + "\r\n\r\n" + randomString + "\r\n";
-  }
-  else
-  {
-    pos = str.find('/');  
-    if (pos != std::string::npos)
-    {
-      std::cout << "pos: " << pos << '\n';
-      if (str[pos+1] == ' ')
-      {
-         response = "HTTP/1.1 200 OK\r\n\r\n";
-      }
-      else  // user-agent?
-      {
-         pos = str.find("/user-agent");
-         if (pos != std::string::npos)
-         {
-            pos = str.find("User-Agent:");
-            if (pos != std::string::npos)
-            {              
-              auto endPos = str.find("\r\n", pos);
-              auto startPos = pos+std::string("User-Agent: ").length();
-              auto agent = str.substr(startPos, endPos - startPos);
-              std::cout << "agent:\"" << agent << "\", count: " << agent.length() << "\n";
-              response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
-              response += std::to_string(agent.length()) + "\r\n\r\n" + agent + "\r\n";
-            }
-         }
-      }
+    int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        std::cerr << "Failed to create server socket\n";
+        return 1;
     }
-  }
-  
-  std::cout << "response: " << response << '\n';
-  
-  if (write(client_fd, response.c_str(), response.length()) < 0)
-	std::cout << "Failed to write the request\n";
 
-  std::cout << "Message send" << std::endl;
-  close(server_fd);
+    int reuse = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse)) < 0) {
+        std::cerr << "setsockopt failed\n";
+        return 1;
+    }
 
-  return 0;
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(4221);
+
+    if (bind(server_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) != 0) {
+        std::cerr << "Failed to bind to port 4221\n";
+        return 1;
+    }
+
+    int connection_backlog = 5;
+    if (listen(server_fd, connection_backlog) != 0) {
+        std::cerr << "listen failed\n";
+        return 1;
+    }
+
+    std::cout << "Waiting for clients to connect...\n";
+
+    std::vector<std::thread> threads;
+
+    while (true) {
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+        int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, &client_addr_len);
+        if (client_fd < 0) {
+            std::cerr << "Failed to accept client connection\n";
+            continue;
+        }
+        std::cout << "Client connected\n";
+
+        threads.emplace_back(handle_client, client_fd);
+    }
+
+    for (auto& t : threads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    close(server_fd);
+    return 0;
 }
