@@ -8,7 +8,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <thread>
-#include <vector>
 
 void handle_client(int client_fd) {
     char buffer[255] { 0 };
@@ -109,8 +108,6 @@ int main(int argc, char **argv) {
 
     std::cout << "Waiting for clients to connect...\n";
 
-    std::vector<std::thread> threads;
-
     while (true) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
@@ -121,13 +118,7 @@ int main(int argc, char **argv) {
         }
         std::cout << "Client connected\n";
 
-        threads.emplace_back(handle_client, client_fd);
-    }
-
-    for (auto& t : threads) {
-        if (t.joinable()) {
-            t.join();
-        }
+        std::jthread(handle_client, client_fd);
     }
 
     close(server_fd);
