@@ -8,8 +8,27 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <thread>
+#include <filesystem>
+#include <fstream>
 
-void handle_client(int client_fd) {
+namespace fs = std::filesystem;
+
+[[nodiscard]] std::string GetFileContents(const fs::path& filePath) {
+    std::ifstream inFile{ filePath, std::ios::in | std::ios::binary };
+    if (!inFile)
+        throw std::runtime_error("Cannot open " + filePath.filename().string());
+
+    std::string str(static_cast<size_t>(fs::file_size(filePath)), 0);
+
+    inFile.read(str.data(), str.size());
+    if (!inFile)
+        throw std::runtime_error("Could not read the full contents from " + filePath.filename().string());
+
+    return str;
+}
+
+
+void handle_client(int client_fd, std::string dir) {
     char buffer[255] { 0 };
     const int len = read(client_fd, buffer, 255);
 
@@ -45,7 +64,7 @@ void handle_client(int client_fd) {
             {
                 response = "HTTP/1.1 200 OK\r\n\r\n";
             }
-            else  // user-agent?
+            else 
             {
                 pos = str.find("/user-agent");
                 if (pos != std::string::npos)
@@ -59,6 +78,27 @@ void handle_client(int client_fd) {
                         std::cout << "agent:\"" << agent << "\", count: " << agent.length() << "\n";
                         response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ";
                         response += std::to_string(agent.length()) + "\r\n\r\n" + agent + "\r\n";
+                    }
+                }
+                else // files?
+                {
+                    pos = str.find("/files/");
+                    if (pos != std::string::npos)
+                    {
+                        std::cout << "trying to load a file...\n";          
+                        auto endPos = str.find(" ", pos);
+                        auto startPos = pos+std::string("/files/").length();
+                        auto fileName = str.substr(startPos, endPos - startPos);
+                        std::cout << "file:\"" << fileName << "\"\n";
+                        auto fullFile = dir + fileName;
+                        std::cout << "full:\"" << fullFile << "\"\n";
+                        if (std::filesystem::exists(fullFile))
+                        {
+                            std::cout << "exists!\n";
+                            response = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ";
+                            auto data = GetFileContents(fullFile);
+                            response += std::to_string(data.length()) + "\r\n\r\n" + data + "\r\n";
+                        }
                     }
                 }
             }
@@ -77,6 +117,21 @@ void handle_client(int client_fd) {
 
 int main(int argc, char **argv) {
     std::cout << "Logs from your program will appear here!\n";
+
+    std::string dir;
+    if (argc > 1)
+    {
+        for (int i = 1; i < argc; ++i)
+            std::cout << i << " param: " << argv[i] << '\n';
+
+        if (argc == 3 && strcmp(argv[1], "--directory") == 0)
+        {
+  	        dir = argv[2];
+            std::cout << "got directory param: \"" << dir << "\"\n";
+        }
+    }
+    else
+        std::cout << "no params passed...\n";
 
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
@@ -118,7 +173,7 @@ int main(int argc, char **argv) {
         }
         std::cout << "Client connected\n";
 
-        std::jthread(handle_client, client_fd);
+        std::jthread(handle_client, client_fd, dir);
     }
 
     close(server_fd);
